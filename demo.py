@@ -7,14 +7,16 @@ Created on Thu Nov 11 13:52:23 2021
 """
 
 from TorchWorks import Experiment
+from Networks.ExampleNetwork import ExampleNetwork
 
-model = None
+model = ExampleNetwork
 hyper_params = {}
-experiment_params = {}
+experiment_params = {'no_epoch': 10}
 
 exp0 = Experiment(network=model, hyper_params=hyper_params, experiment_params=experiment_params)
 
-# exp0.train()
+exp0.train()
+
 # exp0.test()
 
 # exp0.accuracy()

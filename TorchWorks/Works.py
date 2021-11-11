@@ -12,4 +12,20 @@ class Experiment:
         self.hyper_params = hyper_params
         self.experiment_params = experiment_params
         
+    def train(self):
+         #FIXME! dataloader
+        dataloder = []
+ 
+        for k in range(self.experiment_params['no_epoch']):
+            
+            #FIXME! dataloader
+            for batch_data in dataloder:
+                forward_output = self.network(batch_data)
+        
+        print('Train Completed!')
     
+    def test(self):
+        pass
+    
+    def validation(self):
+        pass
