@@ -25,6 +25,7 @@ class Experiment:
         print('Train Completed!')
     
     def test(self):
+        self.network.eval()
         pass
     
     def validation(self):
