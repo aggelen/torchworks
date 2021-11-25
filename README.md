@@ -4,6 +4,12 @@
 - Torchworks is a framework for simplify training, validation, and testing processes with many networks and losses.
 - It was designed to reduce code mess and keep works as experiments.
 
+#### TODO List
+- [x] Show network structure
+- [ ] Generalize dual optimizer training to multiple optimizers
+- [ ] Improve test function
+- [ ] Save/Load/Summarize experiments (not network checkpoints!)
+
 #### Example Architecture For an Experiment
 
 All required classes can be collected into a single file.
