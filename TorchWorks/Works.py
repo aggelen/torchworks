@@ -14,6 +14,28 @@ import itertools
 import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+class LRManager:
+    def __init__(self, params):
+        self.mode = params['mode']
+        self.current_epoch = -1
+        self.current_lr = params['default_lr']
+        self.lr_hist = []
+        
+        if self.mode == 'milestones':
+            self.milestones = np.array(params['milestones'])
+            self.desired_lrs = np.array(params['desired_lrs'])
+        
+    def update(self, optimizer, epoch):
+        if self.mode == 'milestones' and epoch in self.milestones:
+            new_lr = self.desired_lrs[np.where(self.milestones == epoch)[0][0]]
+            self.current_lr = new_lr
+            optimizer.param_groups[0]['lr'] = self.current_lr
+            print('>> LRManager: LR set to {}'.format(new_lr))
+            
+        self.lr_hist.append(self.current_lr)
+        return optimizer
+        
+
 class Experiment:
     def __init__(self, network, experiment_params):
         self.last_epoch = 0
@@ -21,22 +43,30 @@ class Experiment:
         self.eval_hist = []
         self.best_loss = 1e6
 
-        self.l1_lambda = 0.00001
+        self.l1_lambda = 0.00001/2
 
         self.network = network
-
+        
         self.ext_lr = experiment_params['ext_lr']
         self.batch_size = experiment_params['batch_size']
         self.no_epoch = experiment_params['no_epoch']
         self.lr = experiment_params['lr']
         self.cp_path = experiment_params['checkpoint_path']
         self.loss = experiment_params['loss']
+        
+        self.use_lr_manager = experiment_params['use_lr_manager']
+        if self.use_lr_manager:
+            self.lr_manager = LRManager({'mode': 'milestones',
+                                         'default_lr': experiment_params['lr'],
+                                         'milestones': experiment_params['lrm_milestones'],
+                                         'desired_lrs': experiment_params['desired_lrs']})
+            
+        
+        params = [self.network.parameters(), self.loss.parameters()]
 
-        # params = [self.network.parameters(), self.loss.parameters()]
-
-        # self.optimizer = torch.optim.Adam(itertools.chain(*params), lr=self.lr, betas=(0.9,0.999))
-        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.lr, betas=(0.9,0.999))
-
+        self.optimizer = torch.optim.Adam(itertools.chain(*params), lr=self.lr, betas=(0.9,0.999), weight_decay=1e-4)
+        #self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.lr, betas=(0.9,0.999), weight_decay=1e-4)
+      
         # self.optimizer.add_param_group({'params': self.loss.parameters(), 'lr': 1e-3})
 
         print('>> Optimizer set! LR:{}'.format(self.lr))
@@ -67,9 +97,15 @@ class Experiment:
         subset = torch.utils.data.Subset(self.dataset, np.array(self.dataset.train_idx))
         data_loader = torch.utils.data.DataLoader(subset, batch_size=self.batch_size, shuffle=True)
 
+        #print('sx: {}, sq: {}'.format(self.loss.sx,self.loss.sq))
+
         for k in range(self.no_epoch):
             running_loss = 0.0
             for batch_id, batch_data in tqdm(enumerate(data_loader)):
+                
+                if self.use_lr_manager:
+                    self.optimizer = self.lr_manager.update(self.optimizer, k)
+
                 forward_data, target_data = batch_data['forward_data'], batch_data['target_data']
 
                 self.optimizer.zero_grad()
@@ -77,8 +113,8 @@ class Experiment:
                 forward_output = self.network(forward_data)
                 loss = self.loss(forward_output, target_data)
 
-                l1_norm = sum(p.abs().sum() for p in self.network.parameters())
-                loss = loss + self.l1_lambda * l1_norm
+                #l1_norm = sum(p.abs().sum() for p in self.network.parameters())
+                #loss = loss + self.l1_lambda * l1_norm
 
                 loss.backward()
                 self.optimizer.step()
@@ -86,20 +122,30 @@ class Experiment:
                 running_loss += loss.item()
                 # print(loss.item())
 
+
             # print statistics
-            epoch_loss = running_loss / (subset.__len__()*self.batch_size)
+            #epoch_loss = running_loss / (subset.__len__()*self.batch_size)
+            epoch_loss = running_loss / (subset.__len__())
             # epoch_loss = running_loss / 300
             print('RunningLoss: {} @ Epoch #{}'.format(epoch_loss, k+1))
-
+            print('si:{}, ssim:{}, grad:{} @ Epoch #{}'.format(self.loss.s_si.item(),
+                                                        self.loss.s_ssim.item(),
+                                                        self.loss.s_grad.item(),
+                                                        k+1))
             #bestlos / save / log
             self.loss_hist.append(epoch_loss)
 
             eval_loss = self.validate()
             self.eval_hist.append(eval_loss)
+            
+            # if k%5 == 0:
+            #     self.mse()
+            # self.test_hist.append(test_mse)
 
             # self.scheduler.step(eval_loss)
-
-            if epoch_loss < self.best_loss:
+            
+            if True:    #save every
+            # if epoch_loss < self.best_loss:
                 print('Autosave @ Loss: {} @ Epoch #{}'.format(epoch_loss, k+1))
                 self.best_loss = epoch_loss
                 self.save_checkpoint(self.cp_path)
@@ -126,9 +172,37 @@ class Experiment:
     #     # epoch_loss = running_loss / 20
     #     print('Eval Loss: {}'.format(epoch_loss))
     #     return epoch_loss
+    
+    def evaluate_depth(self, save_path):
+        # eval_subs = np.arange(1,1001)
+        eval_subs = np.arange(840)
+        # eval_subs = np.array(list(self.dataset.test_idx))
+        subset = torch.utils.data.Subset(self.dataset, eval_subs)
+        # subset = torch.utils.data.Subset(self.dataset, np.array(self.dataset.valid_idx))
+        data_loader = torch.utils.data.DataLoader(subset, batch_size=1, shuffle=False)
+        
+        mse_list = []
+        
+        self.network.eval()
+        # running_loss = 0.0
+        for batch_id, batch_data in tqdm(enumerate(data_loader)):
+            forward_data, target_data = batch_data['forward_data'], batch_data['target_data']
+            estimated = self.network(forward_data)
+            target_metric = target_data['depth_cur'].unsqueeze(0)
+            l2_metric = torch.mean(torch.square(estimated-target_metric)).detach().numpy()
+            mse_list.append(l2_metric.item())
+            
+
+        mse_errors = np.array(mse_list)
+        print('Evaluate Finished')
+        np.save(save_path, mse_errors)
 
     def evaluate(self, save_path):
-        eval_subs = np.arange(1,1001)
+        print('sx: {}, sq: {}'.format(self.loss.sx,self.loss.sq))
+
+        #eval_subs = np.arange(1,1001)
+        #eval_subs = np.arange(1000)
+        eval_subs = np.arange(860)
         # eval_subs = np.array(list(self.dataset.test_idx))
         subset = torch.utils.data.Subset(self.dataset, eval_subs)
         # subset = torch.utils.data.Subset(self.dataset, np.array(self.dataset.valid_idx))
@@ -158,7 +232,7 @@ class Experiment:
         torch.save({
             'epoch': self.last_epoch,
             'model_state_dict': self.network.state_dict(),
-            # 'loss_state_dict': self.loss.state_dict(),
+            'loss_state_dict': self.loss.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'loss_hist': self.loss_hist,
             'eval_hist': self.eval_hist,
@@ -172,7 +246,7 @@ class Experiment:
 
         self.network.load_state_dict(checkpoint['model_state_dict'], strict=True)
 
-        # self.loss.load_state_dict(checkpoint['loss_state_dict'], strict=True)
+        self.loss.load_state_dict(checkpoint['loss_state_dict'], strict=True)
 
         self.optimizer.__setstate__({'state': defaultdict(dict)})
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -261,7 +335,8 @@ class Experiment:
             val_loss += loss.item()
 
         #val_loss /= subset.__len__()
-        val_loss = val_loss / (subset.__len__()*self.batch_size)
+        #val_loss = val_loss / (subset.__len__()*self.batch_size)
+        val_loss = val_loss / (subset.__len__())
 
         print('Validation Loss: {}'.format(val_loss))
         return val_loss
@@ -273,7 +348,7 @@ class Experiment:
         subset = torch.utils.data.Subset(self.dataset, np.array(self.dataset.test_idx))
         data_loader = torch.utils.data.DataLoader(subset, batch_size=self.batch_size, shuffle=False)
         
-        print('No of test data: {}'.format(data_loader.__len__()))
+        # print('No of test data: {}'.format(data_loader.__len__()))
         
         est_q, est_t, tgt_q, tgt_t = [], [], [], []
         for batch_id, batch_data in tqdm(enumerate(data_loader)):
@@ -302,14 +377,16 @@ class Experiment:
         mse_q = mse(est_q, tgt_q)
 
         print('> MSE Metric Results')
-
         print('> MSE Trans: {} \n> MSE Quat: {}'.format(mse_t, mse_q*512))
         print('> Total: {}'.format(mse_t, mse_q*512))
+        
         #     loss = self.loss(forward_output, target_data)
         #     val_loss += loss.item()
 
         # val_loss /= subset.__len__()
         # print('Validation Loss: {}'.format(val_loss))
+        
+        # return (mse_t + mse_q*512)
 
     def print_model_structure(self):
         i = 0
@@ -328,3 +405,31 @@ class Experiment:
                 nn = nn*s
             pp += nn
         return pp
+    
+    def findmax(self):
+        # eval_subs = np.arange(1,1001)
+        eval_subs = np.arange(839)
+        # eval_subs = np.array(list(self.dataset.test_idx))
+        subset = torch.utils.data.Subset(self.dataset, eval_subs)
+        # subset = torch.utils.data.Subset(self.dataset, np.array(self.dataset.valid_idx))
+        data_loader = torch.utils.data.DataLoader(subset, batch_size=1, shuffle=False)
+        
+        max_list, max_list2 = [], []
+        mean, std = 0.0, 0.0
+        # running_loss = 0.0
+        for batch_id, batch_data in tqdm(enumerate(data_loader)):
+            forward_data, target_data = batch_data['forward_data'], batch_data['target_data']
+            # max_list.append(forward_data[0,1].max().detach().numpy())
+            # max_list2.append(forward_data[0,2].max().detach().numpy())
+            img = forward_data[0,0]
+            mean += img.mean()
+            std += img.std()
+        
+        mean /= len(data_loader.dataset)
+        std /= len(data_loader.dataset)
+            
+        # print(max(max_list))
+        # print('---------')
+        # print(max(max_list2))
+        print(mean)
+        print(std)
