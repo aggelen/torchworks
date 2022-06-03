@@ -82,10 +82,26 @@ class Experiment:
         # else:
         #     raise Exception("Can't find 'Optimizer.py' in experiment path") 
         
-        self.optimizer = torch.optim.Adam(self.model.parameters(),
-                                          lr=self.params['learning_rate'],
-                                          betas=self.params['betas'],
-                                          weight_decay=self.params['weight_decay'])
+        if 'optimizer' in self.params:
+            self.optimizer_type = self.params['optimizer']
+            if self.optimizer_type == 'adam':
+                self.optimizer = torch.optim.Adam(self.model.parameters(),
+                                                  lr=self.params['optimizer_params']['learning_rate'],
+                                                  betas=self.params['optimizer_params']['betas'],
+                                                  weight_decay=self.params['optimizer_params']['weight_decay'])
+            elif self.optimizer_type == 'rmsprop':
+                self.optimizer = torch.optim.RMSprop(self.model.parameters(),
+                                                     lr=self.params['optimizer_params']['learning_rate'],
+                                                     alpha=self.params['optimizer_params']['alpha'],
+                                                     momentum=self.params['optimizer_params']['momentum'])
+        else:
+            #default adam optimizer
+            self.optimizer = torch.optim.Adam(self.model.parameters(),
+                                              lr=3e-4,
+                                              betas=(0.9, 0.99),
+                                              weight_decay=1e-4)
+        
+        
         
     @staticmethod
     def load_json(json_path):

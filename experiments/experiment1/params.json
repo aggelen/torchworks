@@ -1,16 +1,25 @@
 {
-    "exp_name": "experiment1", 
-    "model_name": "ExampleNetwork", 
-    "model_params": {}, 
-    "dataset_name": "ExampleDataset", 
-    "dataset_params": {"data_len": 100, "vector_size": 16}, 
-    "loss_name": "ExampleLoss", 
-    "loss_params": {}, 
-    "batch_size": 1, 
-    "no_epochs": 10, 
-    "learning_rate": 0.0003, 
-    "betas": [0.9, 0.999], 
-    "weight_decay": 0.0001, 
-    "cp_path": "experiments/experiment1/checkpoint.pt", 
-    "load_cp": false
+    "exp_name": "experiment1",
+    "model_name": "ExampleNetwork",
+    "model_params": {},
+    "dataset_name": "ExampleDataset",
+    "dataset_params": {
+        "data_len": 100,
+        "vector_size": 16
+    },
+    "loss_name": "ExampleLoss",
+    "loss_params": {},
+    "batch_size": 1,
+    "no_epochs": 10,
+    "cp_path": "experiments/experiment1/checkpoint.pt",
+    "load_cp": false,
+    "optimizer": "adam",
+    "optimizer_params": {
+        "learning_rate": 0.0003,
+        "betas": [
+            0.9,
+            0.999
+        ],
+        "weight_decay": 0.0001
+    }
 }

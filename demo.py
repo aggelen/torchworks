@@ -8,8 +8,6 @@ Created on Thu Nov 11 13:52:23 2021
 
 from torchworks import Experiment
 
-exp_path = 'experiments/experiment1'
-
-exp1 = Experiment(exp_path)
+exp1 = Experiment(exp_path='experiments/experiment1')
 exp1.train()
 exp1.plot_loss_hist()
