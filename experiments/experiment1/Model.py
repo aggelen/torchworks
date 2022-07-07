@@ -15,9 +15,9 @@ from torch.utils.data import DataLoader
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #%% Network
-class ExampleNetwork(nn.Module):
+class ExampleNetwork1(nn.Module):
     def __init__(self, model_params):
-        super(ExampleNetwork, self).__init__()
+        super(ExampleNetwork1, self).__init__()
 
         self.enc = nn.Sequential(nn.Linear(16,64),
                                  nn.ELU())
@@ -30,3 +30,17 @@ class ExampleNetwork(nn.Module):
         y = self.reg(y)
         return y
 
+class ExampleNetwork2(nn.Module):
+    def __init__(self, model_params):
+        super(ExampleNetwork2, self).__init__()
+
+        self.enc = nn.Sequential(nn.Linear(1,64),
+                                 nn.ELU())
+        
+        self.reg = nn.Linear(64,1)
+        self.to(device)
+
+    def forward(self, x):
+        y = self.enc(x)
+        y = self.reg(y)
+        return y

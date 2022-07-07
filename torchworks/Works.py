@@ -46,8 +46,10 @@ class Experiment:
         model_exists = exists(os.path.join(exp_path, 'Model.py'))
         if model_exists:
             module = importlib.import_module('experiments.' + self.params['exp_name'] + '.Model')
-            model_class = getattr(module, self.params['model_name'])
-            self.model = model_class(self.params['model_params'])
+            self.model =[]
+            for _,m in enumerate(self.params['model_name']):
+                model_class = getattr(module, m)
+                self.model.append( model_class(self.params['model_params']))
             print('Model: OK')
         else:
             raise Exception("Can't find 'Model.py' in experiment path") 
@@ -84,13 +86,16 @@ class Experiment:
         
         if 'optimizer' in self.params:
             self.optimizer_type = self.params['optimizer']
+            parameter_list = []
+            for _,m in enumerate(self.model):
+                parameter_list+= m.parameters()
             if self.optimizer_type == 'adam':
-                self.optimizer = torch.optim.Adam(self.model.parameters(),
+                self.optimizer = torch.optim.Adam(parameter_list ,
                                                   lr=self.params['optimizer_params']['learning_rate'],
                                                   betas=self.params['optimizer_params']['betas'],
                                                   weight_decay=self.params['optimizer_params']['weight_decay'])
             elif self.optimizer_type == 'rmsprop':
-                self.optimizer = torch.optim.RMSprop(self.model.parameters(),
+                self.optimizer = torch.optim.RMSprop(parameter_list,
                                                      lr=self.params['optimizer_params']['learning_rate'],
                                                      alpha=self.params['optimizer_params']['alpha'],
                                                      momentum=self.params['optimizer_params']['momentum'])
@@ -112,7 +117,8 @@ class Experiment:
 
     def train(self):
         print(">> Train")
-        self.model.train()  
+        for _,m in enumerate(self.model):
+            m.train()  
         data_loader = self.dataset.data_loader(self.params['batch_size'])
         
         for k in range(self.params['no_epochs']):
@@ -120,10 +126,11 @@ class Experiment:
             
             for batch_id, batch_data in tqdm(enumerate(data_loader)):
                 forward_data, target_data = batch_data['forward_data'], batch_data['target_data']
+                forward_output = forward_data
 
                 self.optimizer.zero_grad()
- 
-                forward_output = self.model(forward_data)
+                for _,m in enumerate(self.model):
+                    forward_output = m(forward_output)
                 loss = self.loss(forward_output, target_data)
 
                 loss.backward()
@@ -147,7 +154,7 @@ class Experiment:
     def save_checkpoint(self, chekpoint_path):
         torch.save({
             'last_epoch': self.last_epoch,
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': [m.state_dict() for _,m in enumerate(self.model)],
             'loss_state_dict': self.loss.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'loss_hist': self.loss_hist,
