@@ -1,6 +1,6 @@
 {
     "exp_name": "experiment1",
-    "model_name": "ExampleNetwork",
+    "model_name": ["ExampleNetwork1","ExampleNetwork2"],
     "model_params": {},
     "dataset_name": "ExampleDataset",
     "dataset_params": {
