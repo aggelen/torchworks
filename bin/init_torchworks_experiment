@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Sep  1 11:49:58 2022
+
+@author: Aykut G. Gelen
+"""
+
+import os
+import json
+import argparse
+
+def write_file(fname, inc):
+    with open(fname, "w") as f:
+        f.write(inc)
+
+parser = argparse.ArgumentParser("init_torchworks_experiment")
+parser.add_argument("--exp_name", help="The name of the experiment.", type=str, default="experiment_")
+parser.add_argument("--model_name", help="The name of the model.", type=str, default="ExampleModel")
+parser.add_argument("--dataset_name", help="The name of the dataset.", type=str, default="ExampleDataset")
+parser.add_argument("--loss_name", help="The name of the loss.", type=str, default="ExampleLoss")
+
+args = parser.parse_args()
+
+path = args.exp_name
+if os.path.isdir(path):
+    print("Error: There is an experiment with specified name. Please use another!")
+else:
+    os.mkdir(path)
+
+
+
+    #%% Params Json
+    params = {
+        "exp_name": args.exp_name,
+        "exp_path": args.exp_name,
+        "model_name": [args.model_name],
+        "model_params": {},
+        "dataset_name": args.dataset_name,
+        "dataset_params": {"data_len": 100, "vector_size": 16},
+        "loss_name": args.loss_name,
+        "loss_params": {},
+        "batch_size": 1,
+        "no_epochs": 10,
+        "cp_path": "checkpoint.pt",
+        "load_cp": False,
+        "optimizer": "adam",
+        "optimizer_params": {
+            "learning_rate": 0.0003,
+            "betas": [0.9, 0.999],
+            "weight_decay": 0.0001,
+        },
+    }
+    
+    # Serializing json
+    json_object = json.dumps(params, indent=4)
+    
+    # Writing to sample.json
+    with open(path+"/params.json", "w") as outfile:
+        outfile.write(json_object)
+    
+    #%% Model
+    model_inc = """#!/usr/bin/env python3
+import torch
+import torch.nn as nn
+
+#%% Common
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#%% Network
+class {}(nn.Module):
+    def __init__(self, model_params):
+        super({}, self).__init__()
+
+        self.enc = nn.Sequential(nn.Linear(16,64),
+                                 nn.ELU())
+        
+        self.reg = nn.Linear(64,1)
+        self.to(device)
+
+    def forward(self, x):
+        y = self.enc(x)
+        y = self.reg(y)
+        return y
+    """.format(args.model_name, args.model_name)
+    
+    write_file(path+"/Model.py", model_inc)
+    
+    #%% Data
+    data_inc = """#!/usr/bin/env python3
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#%% Data
+class {}(torch.utils.data.Dataset):
+    def __init__(self, dataset_params):
+        self.data_len = dataset_params['data_len']
+        self.vector_size = dataset_params['vector_size']
+        self.fw_data = torch.rand(self.data_len, self.vector_size)
+        self.target_data = (torch.rand(self.data_len, 1) > 0.5).type(torch.FloatTensor)
+        
+    def __len__(self):
+        return self.data_len
+
+    def __getitem__(self, idx):
+        return {{'forward_data': self.fw_data[idx].flatten().to(device), 'target_data': self.target_data[idx].to(device)}}
+
+    def data_loader(self, batch_size):
+        return torch.utils.data.DataLoader(self,
+                                           batch_size=batch_size,
+                                           shuffle=True,
+                                           )
+    """.format(args.dataset_name)
+    
+    write_file(path+"/Data.py", data_inc)
+    
+    #%% Loss
+    loss_inc = """#!/usr/bin/env python3
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#%% Loss
+class {}(nn.Module):
+    def __init__(self, loss_params):
+        super({}, self).__init__()
+        self.criteria = nn.MSELoss()
+        self.to(device)
+
+    def forward(self, estimated, target):
+        # The forward method takes estimated and target parameters.
+        return self.criteria(estimated, target)
+    """.format(args.loss_name, args.loss_name)
+    
+    write_file(path+"/Loss.py", loss_inc)
+    
+    print("Torchworks successfully created a new experiment @ {}".format(args.exp_name))
+    print("Experiment Name: {}".format(args.exp_name))
+    print("Model Name: {}".format(args.model_name))
+    print("Dataset Name: {}".format(args.dataset_name))
+    print("Loss Name: {}".format(args.loss_name))

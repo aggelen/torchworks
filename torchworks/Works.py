@@ -45,7 +45,7 @@ class Experiment:
             
         model_exists = exists(os.path.join(exp_path, 'Model.py'))
         if model_exists:
-            module = importlib.import_module('experiments.' + self.params['exp_name'] + '.Model')
+            module = importlib.import_module(exp_path.replace("/", ".") + '.Model')
             self.model =[]
             for _,m in enumerate(self.params['model_name']):
                 model_class = getattr(module, m)
@@ -56,7 +56,7 @@ class Experiment:
         
         data_exists = exists(os.path.join(exp_path, 'Model.py'))
         if data_exists:
-            module = importlib.import_module('experiments.' + self.params['exp_name'] + '.Data')
+            module = importlib.import_module(exp_path.replace("/", ".") + '.Data')
             data_class = getattr(module, self.params['dataset_name'])
             self.dataset = data_class(self.params['dataset_params'])
             print('Dataset: OK')
@@ -65,7 +65,7 @@ class Experiment:
             
         loss_exists = exists(os.path.join(exp_path, 'Loss.py'))
         if loss_exists:
-            module = importlib.import_module('experiments.' + self.params['exp_name'] + '.Loss')
+            module = importlib.import_module(exp_path.replace("/", ".") + '.Loss')
             loss_class = getattr(module, self.params['loss_name'])
             self.loss = loss_class(self.params['loss_params'])
             print('Loss: OK')

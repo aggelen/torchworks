@@ -25,3 +25,10 @@ exp1 = Experiment(exp_path='experiments/experiment1')
 exp1.train()
 exp1.plot_loss_hist()
 ```
+
+#### New experiments
+Torchworks experiment initializer is a cli tool designed to make it easy to create a new experiment. After installing the package, you can create a new experiment with torchworks template.
+
+```bash
+init_torchworks_experiment --exp_name some_experiment --model_name BestModel --dataset_name FancyDataset --loss_name TWLoss
+```
